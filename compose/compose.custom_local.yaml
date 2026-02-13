@@ -1,4 +1,4 @@
-name: docker_scripts
+name: aruga_docker
 services:
   backend:
     depends_on:
@@ -234,14 +234,14 @@ services:
         volume: {}
 networks:
   default:
-    name: docker_scripts_default
+    name: aruga_docker_default
 volumes:
   db-data:
-    name: docker_scripts_db-data
+    name: aruga_docker_db-data
   redis-queue-data:
-    name: docker_scripts_redis-queue-data
+    name: aruga_docker_redis-queue-data
   sites:
-    name: docker_scripts_sites
+    name: aruga_docker_sites
 x-backend-defaults:
   depends_on:
     configurator:
