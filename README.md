@@ -1,333 +1,179 @@
-# **Frappe / ERPNext Docker Environment**
+# 🧾 ARUGA Accounting & Payroll
+Local Docker Edition  
+Version v0.0.2
+Owned by: SERVIO TECHNOLOGIES
+==================================================
+1. ⚙️ SYSTEM OVERVIEW
+==================================================
 
-A modular, developer-friendly setup for running **Frappe Framework**, **ERPNext**, and **custom apps** using Docker.
-Supports:
+ARUGA is a local accounting and payroll system built on:
 
-* Local development
-* Multi-bench setups
-* Production deployments with Traefik + SSL
-* Custom image building from apps.json (including private repos)
+- 🏗️ Frappe Framework
+- 📊 ERPNext
+- 👥 HRMS
+- 🛠️ Custom ARUGA Modules
 
----
+The system runs entirely inside Docker containers on your computer.  
+🌐 No internet connection is required after installation.
 
-# **📦 Prerequisites**
+--------------------------------------------------
 
-Make sure the following are installed:
+==================================================
+2. 🌐 ACCESSING ARUGA
+==================================================
 
-* **Git**
-* **[Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows and Linux**
-* **[Docker Engine](https://docs.docker.com/engine/) for Linux**
+Open your browser and go to:
 
----
 
-# **🚀 How to Use ARUGA ACCOUNTING AND PAYROLL (Consumers)**
+➡️ [http://localhost:8080](http://localhost:8080)
 
-This is the *simple workflow* for anyone who just wants to run the Frappe/ERPNext container.
+Login Credentials:
 
-1. Clone the repo:
+- 👤 Username: Administrator  
+- 🔑 Password: servio_aruga
 
-   ```bash
-   git clone https://github.com/iaiaian1/docker_scripts -b aruga_acct_payroll
-   ```
-1.1. (Optional) Build the image (ERPNext + Aruga Account and Payroll):
+⚠️ **IMPORTANT:** Change your Administrator password after first login.
 
-   ```bash
-   docker build --no-cache \
-             --build-arg=FRAPPE_PATH=https://github.com/frappe/frappe \
-             --build-arg=FRAPPE_BRANCH=version-15 \
-             --build-arg=APPS_JSON_BASE64=WwogICAgewogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly9naXRodWIuY29tL2ZyYXBwZS9lcnBuZXh0IiwKICAgICAgICAiYnJhbmNoIjogInZlcnNpb24tMTUiCiAgICB9LAogICAgewogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly9naXRodWIuY29tL2ZyYXBwZS9ocm1zIiwKICAgICAgICAiYnJhbmNoIjogInZlcnNpb24tMTUiCiAgICB9LAogICAgewogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly9naXRodWIuY29tL05leHRTZXJ2L2FydWdhX2FjY3QiLAogICAgICAgICJicmFuY2giOiAibWFpbiIKICAgIH0sCiAgICB7CiAgICAgICAgInVybCI6ICJodHRwczovL2dpdGh1Yi5jb20vTmV4dFNlcnYvYXJ1Z2FfcGF5IiwKICAgICAgICAiYnJhbmNoIjogIm1haW4iCiAgICB9Cl0= \
-             --tag=serviodocker/aruga_acct_payroll:v0.0.1 \
-             --file=Dockerfile .
-   ```
-2. Start the container:
+--------------------------------------------------
 
-   ```bash
-   docker compose -f compose/compose.custom_local.yaml up -d
-   ```
-3. Create a site:
+==================================================
+3. 🐳 DOCKER INFORMATION
+==================================================
 
-   ```bash
-   docker compose exec backend bench new-site localhost --mariadb-user-host-login-scope='172.%.%.%'
-   ```
-4. Default MySQL root password when asked:
+ARUGA runs using Docker containers.
 
-   ```
-   frappe
-   ```
-5. Set the Administrator password when asked.
-6. Open your browser:
+To check running containers:
 
-   ```
-   http://localhost:8080
-   ```
-7. To install ERPNext and Aruga Accounting + Payroll
-    ```
-    docker compose exec backend bench --site localhost install-app erpnext hrms aruga_acct aruga_pay
-    ```
----
+    docker ps
 
-# **🛠 How This Works (Developers)**
+You should see containers like:
 
-This repository supports **two development paths**:
+🖥️ backend
 
-### **1. Using prebuilt Docker Compose templates and Frappe's Official Image**
+💾 db
 
-* **Generate** a compose file using the provided overrides.
-* Run using:
+🔄 redis
 
-  ```bash
-  docker compose -f <compose.yaml> up -d
-  ```
-* Includes **Frappe + ERPNext** by default.
+🌐 nginx
+--------------------------------------------------
 
-### **2. Building your own custom Frappe image**
+START ARUGA (if stopped):
 
-* Define your apps in `apps.json` and encode it
-* Read and customize .env
-* Build an image containing your custom apps
-* Generate a compose file matching your needs
-* Run using your own custom Frappe stack
+    docker compose -f compose/compose.custom_local.yaml up -d
 
----
+STOP ARUGA:
 
-# **🏗 Building a Custom Image**
+    docker compose -f compose/compose.custom_local.yaml down
 
-### **Adding Private Repos**
+RESTART ARUGA:
 
-Update your apps.json entry like:
+    docker compose -f compose/compose.custom_local.yaml restart
 
-```json
-[
-    {
-        "url": "https://github.com/frappe/erpnext",
-        "branch": "version-15"
-    },
-    {
-        "url": "https://<GITHUB_USERNAME>:<GITHUB_TOKEN>@github.com/repository/app_name",
-        "branch": "version-15"
-    }
-]
-```
+--------------------------------------------------
 
-### **Encode apps.json**
+==================================================
+4. 🗄️ DATABASE INFORMATION
+==================================================
 
-```bash
-export APPS_JSON_BASE64=$(base64 -w 0 apps.json)
-```
+Database: MariaDB (inside Docker)
 
-or
+🔑 Root Password (internal only): frappe
 
-```bash
-APPS_JSON_BASE64=$(base64 -w 0 apps.json)
-```
+⚙️ You do NOT need to manage the database manually.
 
-### **Choose the desired Dockerfile**
-This repository uses the **"Layered"** Dockerfile.
+--------------------------------------------------
 
-> Great for production builds when you’re fine with the dependency versions managed by Frappe. Builds much faster since the base layers are already prepared.
+==================================================
+5. 🗂️ INSTALLATION LOCATION
+==================================================
 
-**ℹ️ Source: https://github.com/frappe/frappe_docker/blob/main/docs/container-setup/01-overview.md**
+Installed Directory:
 
-### **Build commands**
+C:\Users\<YourUser>\aruga_docker
 
-```bash
-docker build --no-cache \
-             --build-arg=FRAPPE_PATH=https://github.com/frappe/frappe \
-             --build-arg=FRAPPE_BRANCH=version-15 \
-             --build-arg=APPS_JSON_BASE64=WwogICAgewogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly9naXRodWIuY29tL2ZyYXBwZS9lcnBuZXh0IiwKICAgICAgICAiYnJhbmNoIjogInZlcnNpb24tMTUiCiAgICB9LAogICAgewogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly9naXRodWIuY29tL2ZyYXBwZS9ocm1zIiwKICAgICAgICAiYnJhbmNoIjogInZlcnNpb24tMTUiCiAgICB9LAogICAgewogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly9naXRodWIuY29tL05leHRTZXJ2L2FydWdhX2FjY3QiLAogICAgICAgICJicmFuY2giOiAibWFpbiIKICAgIH0sCiAgICB7CiAgICAgICAgInVybCI6ICJodHRwczovL2dpdGh1Yi5jb20vTmV4dFNlcnYvYXJ1Z2FfcGF5IiwKICAgICAgICAiYnJhbmNoIjogIm1haW4iCiAgICB9Cl0= \
-             --tag=serviodocker/aruga_acct_payroll:v0.0.1 \
-             --file=Dockerfile .
-```
+Important folders:
 
----
+compose/
+apps/
+sites/
+README.md
 
-# **🧩 Generating a Compose File**
+--------------------------------------------------
 
-```bash
-docker compose --env-file .env \
-  -f compose.yaml \
-  -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
-  -f overrides/compose.noproxy.yaml \
-  config > compose.custom.yaml
-```
+==================================================
+6. ⚠️ RESETTING SYSTEM (WARNING)
+==================================================
 
----
+To completely reset ARUGA and delete ALL data:
 
-# **🐳 Useful Docker Commands**
+    docker compose -f compose/compose.custom_local.yaml down -v
 
-### **Create a Site (for compose.local.yaml) V14**
+This deletes:
+- Database
+- Uploaded files
+- All accounting data
 
-```bash
-docker compose exec backend bench new-site localhost --no-mariadb-socket
-docker compose exec backend bench --site localhost install-app erpnext
-```
-### **Create a Site (for compose.local.yaml) V15**
+Use carefully.
 
-```bash
-docker compose exec backend bench new-site localhost --mariadb-user-host-login-scope='172.%.%.%'
-docker compose exec backend bench --site localhost install-app erpnext
-```
+--------------------------------------------------
 
-### **Create a Site (custom domain)**
+==================================================
+7. 💾 BACKUP & RESTORE
+==================================================
 
-```bash
-docker compose exec backend bench new-site test.local --mariadb-user-host-login-scope='172.%.%.%'
-docker compose exec backend bench --site test.local install-app erpnext
-```
+To create a backup:
 
-### **Updating a Container**
+    docker compose -f compose/compose.custom_local.yaml exec backend bench --site localhost backup
 
-```bash
-docker compose -f compose/compose.local.yaml pull
-docker compose -f compose/compose.local.yaml up -d --remove-orphans
-docker compose -f compose/compose.local.yaml up -d --force-recreate --remove-orphans
-```
+Backup files will be inside:
 
-### **Copy file/folder**
+sites/localhost/private/backups/
 
-**Local → Container**
+--------------------------------------------------
 
-```bash
-docker compose cp db.sql backend:home/frappe/frappe-bench
-```
+==================================================
+8. 🛠️ TROUBLESHOOTING
+==================================================
 
-**Container → Local**
+If ARUGA does not open:
 
-```bash
-docker compose cp backend:home/frappe/frappe-bench/sites/common_site_config.json .
-```
+1. Make sure Docker Desktop is running.
+2. Run:
+       docker ps
+3. If containers are not running:
+       docker compose -f compose/compose.custom_local.yaml up -d
+4. Restart Docker Desktop if needed.
 
-**Copy logs**
+If port 8080 does not open:
+Make sure no other application is using port 8080.
 
-```bash
-docker compose -f pwd.yml cp backend:/home/frappe/frappe-bench/logs/ ./debug-logs/
-```
+--------------------------------------------------
 
-**Copy site files**
+==================================================
+9. 🧩 INSTALLED APPLICATION
+==================================================
 
-```bash
-docker compose -f pwd.yml cp backend:/home/frappe/frappe-bench/sites/mysite.com ./backup/
-```
+Core:
+- frappe
+- erpnext
+- hrms
 
-**Increase and max_allowed_packet for big restores**
+Custom:
+- aruga_acct
+- aruga_pay
+- aruga_main
 
-```bash
-docker exec -it docker_scripts-db-1 mariadb --user=root --password=frappe --execute="SET GLOBAL max_allowed_packet = 268435456;"
+--------------------------------------------------
 
-docker exec -it docker_scripts-db-1 mariadb --user=root --password=frappe --execute="SHOW VARIABLES LIKE 'max_allowed_packet';"
-```
+==================================================
+10. 📞 SUPPORT
+==================================================
 
----
+ARUGA Local Edition
+For technical support contact your system provider.
 
-# **📐 Docker Compose Templates**
+This system runs locally on your computer.
 
-Use override files to produce the exact stack you need.
-
-## **Local Development**
-
-**Port-based, HTTP, cron included**
-
-```bash
-docker compose --env-file .env \
-  -f compose.yaml \
-  -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
-  -f overrides/compose.noproxy.yaml \
-  -f overrides/compose.backup-cron.yaml \
-  config > compose/compose.local.yaml
-```
-
-**HTTP Proxy (requires hosts file)**
-
-```bash
-docker compose --env-file .env \
-  -f compose.yaml \
-  -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
-  -f overrides/compose.proxy.yaml \
-  -f overrides/compose.backup-cron.yaml \
-  config > compose/compose.local_proxy.yaml
-```
-
-**HTTP Proxy (requires hosts file) + multi-bench**
-
-```bash
-docker compose --env-file .env \
-  -f compose.yaml \
-  -f overrides/compose.redis.yaml \
-  -f overrides/compose.multi-bench.yaml \
-  -f overrides/compose.mariadb-shared.yaml \
-  -f overrides/compose.traefik.yaml \
-  -f overrides/compose.backup-cron.yaml \
-  config > compose/compose.local_multi_proxy.yaml
-```
-
----
-
-# **⚠️ WIP - 🔐 Production / SSL / HTTPS**
-
-### **Single Site + SSL**
-
-```bash
-docker compose --env-file .env \
-  -f compose.yaml \
-  -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
-  -f overrides/compose.https.yaml \
-  -f overrides/compose.backup-cron.yaml \
-  config > compose/compose.https.yaml
-```
-
-### **Multiple Sites + SSL**
-
-Combine:
-
-```bash
-WIP
-```
-
----
-
-# **⚠️ WIP - 🌐 Shared Apps Mode**
-
-Apps get their own volume, useful for multi-project dev.
-
-```bash
-docker compose --env-file .env \
-  -f compose_shared_apps.yaml \
-  -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
-  -f overrides/compose.noproxy.yaml \
-  -f overrides/compose.backup-cron.yaml \
-  config > compose/compose.shared_local.yaml
-```
-
----
-
-# **⚠️ WIP - 📄 Override Files Reference**
-
-| Override File                      | Purpose                       | When to Use                      | Key Services / Changes     |
-| ---------------------------------- | ----------------------------- | -------------------------------- | -------------------------- |
-| **compose.backup-cron.yaml**       | Automated backups             | Need automatic DB + files backup | backup-cron service        |
-| **compose.custom-domain-ssl.yaml** | Custom domain + SSL           | Production                       | Traefik + cert resolver    |
-| **compose.custom-domain.yaml**     | Custom HTTP domain            | Local testing                    | VIRTUAL_HOST settings      |
-| **compose.https.yaml**             | Force HTTPS                   | Using Traefik + SSL              | Redirect middleware        |
-| **compose.mariadb-secrets.yaml**   | Secrets-based DB passwd       | Swarm / secure deployments       | Uses Docker secrets        |
-| **compose.mariadb-shared.yaml**    | Shared MariaDB across benches | Multi-site hosting               | Shared DB host             |
-| **compose.mariadb.yaml**           | MariaDB service               | Default setups                   | mariadb:10.6               |
-| **compose.multi-bench-ssl.yaml**   | Multi-site SSL                | Multi-tenant prod                | Traefik SSL routing        |
-| **compose.multi-bench.yaml**       | Multiple benches              | Dev multi-bench                  | Multiple backends          |
-| **compose.noproxy.yaml**           | Remove Traefik                | Classic port-based dev           | Exposes ports 8000/9000    |
-| **compose.postgres.yaml**          | PostgreSQL support            | Using Postgres                   | postgres:15                |
-| **compose.proxy.yaml**             | Enable Traefik (HTTP only)    | Reverse proxy dev                | web entrypoint             |
-| **compose.redis.yaml**             | Redis services                | Queue, Cache, SocketIO           | redis-queue/cache/socketio |
-| **compose.traefik-ssl.yaml**       | Traefik + Let’s Encrypt SSL   | Production HTTPS                 | websecure entrypoint       |
-| **compose.traefik.yaml**           | Base Traefik Config           | Proxy setups                     | Traefik dashboard          |
-
----
-
-# **📚 Reference**
-
-Official Frappe Docker documentation:
-[https://github.com/frappe/frappe_docker/](https://github.com/frappe/frappe_docker/)
+==================================================
+🏁 END OF GUIDE
+==================================================
