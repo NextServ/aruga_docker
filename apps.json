@@ -14,5 +14,9 @@
     {
         "url": "https://github.com/NextServ/aruga_pay",
         "branch": "main"
+    },
+    {
+        "url": "https://github.com/mokuken/aruga_main",
+        "branch": "main"
     }
 ]
