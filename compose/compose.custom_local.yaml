@@ -11,10 +11,35 @@ services:
     platform: linux/amd64
     pull_policy: missing
     restart: unless-stopped
+    command:
+      - bash
+      - -c
+      - |
+        for app in /home/frappe/frappe-bench/apps/*/; do
+          uv pip install -q -e $$app --python /home/frappe/frappe-bench/env/bin/python 2>/dev/null || true
+        done
+        /home/frappe/frappe-bench/env/bin/gunicorn \
+          --chdir=/home/frappe/frappe-bench/sites \
+          --bind=0.0.0.0:8000 \
+          --threads=4 \
+          --workers=2 \
+          --worker-class=gthread \
+          --worker-tmp-dir=/dev/shm \
+          --timeout=120 \
+          --preload \
+          frappe.app:application
     volumes:
       - type: volume
         source: sites
         target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
         volume: {}
   configurator:
     command:
@@ -49,6 +74,14 @@ services:
       - type: volume
         source: sites
         target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
         volume: {}
   cron:
     command:
@@ -153,6 +186,14 @@ services:
         source: sites
         target: /home/frappe/frappe-bench/sites
         volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
   queue-short:
     command:
       - bench
@@ -173,6 +214,14 @@ services:
       - type: volume
         source: sites
         target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
         volume: {}
   redis-cache:
     image: redis:6.2-alpine
@@ -213,6 +262,14 @@ services:
         source: sites
         target: /home/frappe/frappe-bench/sites
         volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
   websocket:
     command:
       - node
@@ -232,6 +289,14 @@ services:
         source: sites
         target: /home/frappe/frappe-bench/sites
         volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
 networks:
   default:
     name: aruga_docker_default
@@ -242,6 +307,10 @@ volumes:
     name: aruga_docker_redis-queue-data
   sites:
     name: aruga_docker_sites
+  apps:
+    name: aruga_docker_apps
+  env:
+    name: aruga_docker_env
 x-backend-defaults:
   depends_on:
     configurator:
@@ -250,7 +319,7 @@ x-backend-defaults:
   pull_policy: missing
   restart: unless-stopped
   volumes:
-    - sites:/home/frappe/frappe-bench/sites
+    - sites:/home/frappe/frappe-bench/apps
 x-customizable-image:
   image: serviodocker/aruga_acct_payroll:v0.0.6
   pull_policy: missing
