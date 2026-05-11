@@ -1,0 +1,440 @@
+# =============================================================================
+# ARUGA PRODUCTION ENVIRONMENT — Docker Compose
+# =============================================================================
+# PURPOSE : Production environment — live client-facing deployment
+# TRAEFIK : NOT included here. This stack reuses the Traefik instance
+#           running in the SANDBOX stack (compose.sandbox.yaml).
+#           The sandbox stack MUST be running before starting this stack.
+#
+# HOW TO USE:
+#   1. Make sure sandbox stack is running (Traefik must be alive)
+#   2. Find every line marked [CHANGE THIS] and update accordingly
+#   3. Run: chmod +x install-aruga-production.sh && ./install-aruga-production.sh
+#
+# TO UPDATE IMAGE VERSION:
+#   - Change all image tags below (search: v0.0.7, replace with new version)
+#   - Then run:
+#       docker compose -f compose.production.yaml pull
+#       docker compose -f compose.production.yaml up -d
+#       docker compose -f compose.production.yaml exec backend \
+#         bench --site <your-production-domain> migrate
+#
+# RELATIONSHIP WITH SANDBOX:
+#   sandbox  → owns Traefik → handles SSL for ALL domains on this server
+#   production → joins sandbox's Docker network → Traefik routes to it automatically
+# =============================================================================
+
+# [CHANGE THIS] Stack name — prefixes all container and volume names.
+# Example: aruga_production → containers: aruga_production-backend-1, etc.
+# Must be DIFFERENT from the sandbox stack name.
+name: aruga_production
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # BACKEND — Gunicorn WSGI Application Server
+  # ---------------------------------------------------------------------------
+  backend:
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    # [CHANGE THIS] Update image tag to your production version
+    # This can be a DIFFERENT version from sandbox for staged rollouts
+    # Example: serviodocker/aruga_acct_payroll:v0.0.8
+    image: serviodocker/aruga_acct_payroll:v0.0.7
+    networks:
+      default: null
+    platform: linux/amd64
+    pull_policy: missing
+    restart: unless-stopped
+    command:
+      - bash
+      - -c
+      - |
+        for app in /home/frappe/frappe-bench/apps/*/; do
+          uv pip install -q -e $$app --python /home/frappe/frappe-bench/env/bin/python 2>/dev/null || true
+        done
+        /home/frappe/frappe-bench/env/bin/gunicorn \
+          --chdir=/home/frappe/frappe-bench/sites \
+          --bind=0.0.0.0:8000 \
+          --threads=4 \
+          --workers=2 \
+          --worker-class=gthread \
+          --worker-tmp-dir=/dev/shm \
+          --timeout=120 \
+          --preload \
+          frappe.app:application
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
+
+  # ---------------------------------------------------------------------------
+  # CONFIGURATOR — One-time setup container (runs once then exits)
+  # ---------------------------------------------------------------------------
+  configurator:
+    command:
+      - |
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
+        # [CHANGE THIS] Your production domain with https://
+        # Example: https://yourclient.com
+        bench set-config -g host_name "https://playlab.serviotech.com";
+    depends_on:
+      db:
+        condition: service_healthy
+        required: true
+      redis-cache:
+        condition: service_started
+        required: true
+      redis-queue:
+        condition: service_started
+        required: true
+    entrypoint:
+      - bash
+      - -c
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: "9000"
+    # [CHANGE THIS] Must match the backend image tag above
+    image: serviodocker/aruga_acct_payroll:v0.0.7
+    networks:
+      default: null
+    platform: linux/amd64
+    pull_policy: missing
+    restart: on-failure
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
+
+  # ---------------------------------------------------------------------------
+  # CRON — Scheduled task runner (Ofelia)
+  # ---------------------------------------------------------------------------
+  cron:
+    command:
+      - daemon
+      - --docker
+    depends_on:
+      scheduler:
+        condition: service_started
+        required: true
+    image: mcuadros/ofelia:latest
+    networks:
+      default: null
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+        bind:
+          create_host_path: true
+
+  # ---------------------------------------------------------------------------
+  # DATABASE — MariaDB (isolated from sandbox)
+  # ---------------------------------------------------------------------------
+  db:
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+      - --max-allowed-packet=256M
+    environment:
+      MARIADB_AUTO_UPGRADE: "1"
+      # [CHANGE THIS] Strong DB root password — must match DB_ROOT_PASSWORD in install script
+      MYSQL_ROOT_PASSWORD: frappe
+    healthcheck:
+      test:
+        - CMD
+        - healthcheck.sh
+        - --connect
+        - --innodb_initialized
+      timeout: 5s
+      interval: 5s
+      retries: 5
+      start_period: 5s
+    image: mariadb:10.6
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: db-data
+        target: /var/lib/mysql
+        volume: {}
+
+  # ---------------------------------------------------------------------------
+  # FRONTEND — Nginx web server + Traefik routing labels
+  # ---------------------------------------------------------------------------
+  # KEY DIFFERENCE FROM SANDBOX:
+  # This service joins TWO networks:
+  #   1. default (internal production network)
+  #   2. traefik-network (sandbox's network so Traefik can route to it)
+  # ---------------------------------------------------------------------------
+  frontend:
+    command:
+      - nginx-entrypoint.sh
+    depends_on:
+      backend:
+        condition: service_started
+        required: true
+      websocket:
+        condition: service_started
+        required: true
+    environment:
+      BACKEND: backend:8000
+      CLIENT_MAX_BODY_SIZE: 50m
+      # [CHANGE THIS] Your production domain — no https://
+      # Example: yourclient.com
+      FRAPPE_SITE_NAME_HEADER: playlab.serviotech.com
+      PROXY_READ_TIMEOUT: "120"
+      SOCKETIO: websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+    # [CHANGE THIS] Must match the backend image tag above
+    image: serviodocker/aruga_acct_payroll:v0.0.7
+    # NOTE: No direct port mapping — sandbox's Traefik handles all routing
+    labels:
+      traefik.enable: "true"
+      # [CHANGE THIS] Must match the sandbox network name
+      # Pattern: <sandbox-stack-name>_default
+      traefik.docker.network: aruga_sandbox_default
+      traefik.http.services.prod-frontend.loadbalancer.server.port: "8080"
+      traefik.http.routers.prod-frontend-https.entrypoints: https
+      # [CHANGE THIS] Your production domain
+      # Example: Host(`yourclient.com`)
+      traefik.http.routers.prod-frontend-https.rule: Host(`playlab.serviotech.com`)
+      traefik.http.routers.prod-frontend-https.tls: "true"
+      traefik.http.routers.prod-frontend-https.tls.certresolver: le
+      traefik.http.routers.prod-frontend-http.entrypoints: http
+      # [CHANGE THIS] Same domain as above
+      traefik.http.routers.prod-frontend-http.rule: Host(`playlab.serviotech.com`)
+      traefik.http.routers.prod-frontend-http.middlewares: redirect-to-https@docker
+    networks:
+      default: null
+      traefik-network: null   # Joins sandbox Traefik network for routing
+    platform: linux/amd64
+    pull_policy: missing
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+
+  # ---------------------------------------------------------------------------
+  # QUEUE WORKERS — Background job processors
+  # ---------------------------------------------------------------------------
+  queue-long:
+    command:
+      - bench
+      - worker
+      - --queue
+      - long,default,short
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    # [CHANGE THIS] Must match the backend image tag above
+    image: serviodocker/aruga_acct_payroll:v0.0.7
+    networks:
+      default: null
+    platform: linux/amd64
+    pull_policy: missing
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
+
+  queue-short:
+    command:
+      - bench
+      - worker
+      - --queue
+      - short,default
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    # [CHANGE THIS] Must match the backend image tag above
+    image: serviodocker/aruga_acct_payroll:v0.0.7
+    networks:
+      default: null
+    platform: linux/amd64
+    pull_policy: missing
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
+
+  # ---------------------------------------------------------------------------
+  # REDIS — Cache and Queue backends
+  # ---------------------------------------------------------------------------
+  redis-cache:
+    image: redis:6.2-alpine
+    networks:
+      default: null
+    restart: unless-stopped
+
+  redis-queue:
+    image: redis:6.2-alpine
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: redis-queue-data
+        target: /data
+        volume: {}
+
+  # ---------------------------------------------------------------------------
+  # SCHEDULER — Background job scheduler + auto backup via Ofelia
+  # ---------------------------------------------------------------------------
+  scheduler:
+    command:
+      - bench
+      - schedule
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    # [CHANGE THIS] Must match the backend image tag above
+    image: serviodocker/aruga_acct_payroll:v0.0.7
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.datecron.command: bench --site all backup
+      # [CHANGE THIS] Backup schedule
+      # Options: @every 6h | @every 12h | @daily | 0 2 * * * (cron syntax)
+      ofelia.job-exec.datecron.schedule: '@every 6h'
+      ofelia.job-exec.datecron.user: frappe
+    networks:
+      default: null
+    platform: linux/amd64
+    pull_policy: missing
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
+
+  # ---------------------------------------------------------------------------
+  # WEBSOCKET — Real-time events via Socket.io
+  # ---------------------------------------------------------------------------
+  websocket:
+    command:
+      - node
+      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+        required: true
+    # [CHANGE THIS] Must match the backend image tag above
+    image: serviodocker/aruga_acct_payroll:v0.0.7
+    networks:
+      default: null
+    platform: linux/amd64
+    pull_policy: missing
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sites
+        target: /home/frappe/frappe-bench/sites
+        volume: {}
+      - type: volume
+        source: apps
+        target: /home/frappe/frappe-bench/apps
+        volume: {}
+      - type: volume
+        source: env
+        target: /home/frappe/frappe-bench/env
+        volume: {}
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  # Internal production network
+  # [CHANGE THIS] Pattern: <stack-name>_default
+  default:
+    name: aruga_production_default
+
+  # External reference to sandbox's network so Traefik can route here.
+  # [CHANGE THIS] Must match the sandbox stack's default network name.
+  # Pattern: <sandbox-stack-name>_default
+  traefik-network:
+    name: aruga_sandbox_default
+    external: true
+
+# =============================================================================
+# VOLUMES
+# All volumes prefixed with stack name — completely isolated from sandbox.
+# =============================================================================
+volumes:
+  db-data:
+    name: aruga_production_db-data        # MariaDB production database
+  redis-queue-data:
+    name: aruga_production_redis-queue-data
+  sites:
+    name: aruga_production_sites          # Frappe sites (configs, files, backups)
+  apps:
+    name: aruga_production_apps           # Installed app code
+  env:
+    name: aruga_production_env            # Python virtual environment
