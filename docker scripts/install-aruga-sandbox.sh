@@ -9,11 +9,11 @@
 # HOW TO USE:
 #   1. Update the variables below marked [CHANGE THIS]
 #   2. Make sure compose.sandbox.yaml is configured with your domain
-#   3. chmod +x install-aruga-sandbox.sh
-#   4. ./install-aruga-sandbox.sh
+#   3. chmod +x scripts/install-aruga-sandbox.sh
+#   4. cd ~/aruga_docker && ./scripts/install-aruga-sandbox.sh
 #
 # TO RE-RUN (e.g. after server reboot):
-#   Just run ./install-aruga-sandbox.sh again — it detects existing sites
+#   Just run cd ~/aruga_docker && ./scripts/install-aruga-sandbox.sh again — it detects existing sites
 #   and runs migrate + clear-cache instead of reinstalling from scratch.
 # =============================================================================
 
@@ -37,6 +37,7 @@ INSTALL_DIR="$HOME/aruga_docker"
 
 # Path to the sandbox compose file
 COMPOSE_FILE="$INSTALL_DIR/compose/compose.sandbox.yaml"
+# NOTE: Script lives in scripts/ folder — paths are relative to INSTALL_DIR
 
 # Git repo and branch
 REPO_URL="https://github.com/NextServ/aruga_docker.git"
