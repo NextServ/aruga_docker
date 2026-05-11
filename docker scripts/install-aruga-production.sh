@@ -11,11 +11,11 @@
 #      docker compose -f ~/aruga_docker/compose/compose.sandbox.yaml ps
 #   2. Update the variables below marked [CHANGE THIS]
 #   3. Make sure compose.production.yaml is configured with your domain
-#   4. chmod +x install-aruga-production.sh
-#   5. ./install-aruga-production.sh
+#   4. chmod +x scripts/install-aruga-production.sh
+#   5. cd ~/aruga_docker && ./scripts/install-aruga-production.sh
 #
 # TO RE-RUN (e.g. after server reboot):
-#   Just run ./install-aruga-production.sh again — it detects existing sites
+#   Just run cd ~/aruga_docker && ./scripts/install-aruga-production.sh again — it detects existing sites
 #   and runs migrate + clear-cache instead of reinstalling from scratch.
 # =============================================================================
 
