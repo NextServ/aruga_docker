@@ -1,5 +1,39 @@
 name: aruga_docker
 services:
+
+  traefik:
+    image: traefik:v2.11
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.http.address=:80
+      - --entrypoints.http.http.redirections.entrypoint.to=https
+      - --entrypoints.http.http.redirections.entrypoint.scheme=https
+      - --entrypoints.https.address=:443
+      - --certificatesresolvers.le.acme.httpChallenge=true
+      - --certificatesresolvers.le.acme.httpChallenge.entrypoint=http
+      - --certificatesresolvers.le.acme.email=carl@servio.ph
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --accesslog
+      - --log
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: volume
+        source: cert-data
+        target: /letsencrypt
+        volume: {}
+    networks:
+      default: null
+
   backend:
     depends_on:
       configurator:
@@ -41,10 +75,18 @@ services:
         source: env
         target: /home/frappe/frappe-bench/env
         volume: {}
+
   configurator:
     command:
       - |
-        ls -1 apps > sites/apps.txt; bench set-config -g db_host $$DB_HOST; bench set-config -gp db_port $$DB_PORT; bench set-config -g redis_cache "redis://$$REDIS_CACHE"; bench set-config -g redis_queue "redis://$$REDIS_QUEUE"; bench set-config -g redis_socketio "redis://$$REDIS_QUEUE"; bench set-config -gp socketio_port $$SOCKETIO_PORT;bench set-config -g host_name "http://frontend:8080"; 
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
+        bench set-config -g host_name "https://playlab-sandbox.serviotech.com";
     depends_on:
       db:
         condition: service_healthy
@@ -83,6 +125,7 @@ services:
         source: env
         target: /home/frappe/frappe-bench/env
         volume: {}
+
   cron:
     command:
       - daemon
@@ -101,6 +144,7 @@ services:
         read_only: true
         bind:
           create_host_path: true
+
   db:
     command:
       - --character-set-server=utf8mb4
@@ -130,6 +174,7 @@ services:
         source: db-data
         target: /var/lib/mysql
         volume: {}
+
   frontend:
     command:
       - nginx-entrypoint.sh
@@ -143,21 +188,23 @@ services:
     environment:
       BACKEND: backend:8000
       CLIENT_MAX_BODY_SIZE: 50m
-      FRAPPE_SITE_NAME_HEADER: $$host
+      FRAPPE_SITE_NAME_HEADER: playlab-sandbox.serviotech.com
       PROXY_READ_TIMEOUT: "120"
       SOCKETIO: websocket:9000
       UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
       UPSTREAM_REAL_IP_RECURSIVE: "off"
     image: serviodocker/aruga_acct_payroll:v0.0.6
+    labels:
+      traefik.enable: "true"
+      traefik.http.services.frontend.loadbalancer.server.port: "8080"
+      traefik.http.routers.frontend-https.entrypoints: https
+      traefik.http.routers.frontend-https.rule: Host(`playlab-sandbox.serviotech.com`)
+      traefik.http.routers.frontend-https.tls: "true"
+      traefik.http.routers.frontend-https.tls.certresolver: le
     networks:
       default: null
     platform: linux/amd64
-    ports:
-      - mode: ingress
-        target: 8080
-        published: "8080"
-        protocol: tcp
     pull_policy: missing
     restart: unless-stopped
     volumes:
@@ -165,6 +212,7 @@ services:
         source: sites
         target: /home/frappe/frappe-bench/sites
         volume: {}
+
   queue-long:
     command:
       - bench
@@ -194,6 +242,7 @@ services:
         source: env
         target: /home/frappe/frappe-bench/env
         volume: {}
+
   queue-short:
     command:
       - bench
@@ -223,11 +272,13 @@ services:
         source: env
         target: /home/frappe/frappe-bench/env
         volume: {}
+
   redis-cache:
     image: redis:6.2-alpine
     networks:
       default: null
     restart: unless-stopped
+
   redis-queue:
     image: redis:6.2-alpine
     networks:
@@ -238,6 +289,7 @@ services:
         source: redis-queue-data
         target: /data
         volume: {}
+
   scheduler:
     command:
       - bench
@@ -270,6 +322,7 @@ services:
         source: env
         target: /home/frappe/frappe-bench/env
         volume: {}
+
   websocket:
     command:
       - node
@@ -297,10 +350,14 @@ services:
         source: env
         target: /home/frappe/frappe-bench/env
         volume: {}
+
 networks:
   default:
     name: aruga_docker_default
+
 volumes:
+  cert-data:
+    name: aruga_docker_cert-data
   db-data:
     name: aruga_docker_db-data
   redis-queue-data:
@@ -311,6 +368,7 @@ volumes:
     name: aruga_docker_apps
   env:
     name: aruga_docker_env
+
 x-backend-defaults:
   depends_on:
     configurator:
