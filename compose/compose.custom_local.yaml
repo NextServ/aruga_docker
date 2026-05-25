@@ -5,7 +5,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: serviodocker/aruga_acct_payroll:v0.0.6
+    image: serviodocker/aruga_acct_payroll:v0.0.7
     networks:
       default: null
     platform: linux/amd64
@@ -64,7 +64,7 @@ services:
       REDIS_CACHE: redis-cache:6379
       REDIS_QUEUE: redis-queue:6379
       SOCKETIO_PORT: "9000"
-    image: serviodocker/aruga_acct_payroll:v0.0.6
+    image: serviodocker/aruga_acct_payroll:v0.0.7
     networks:
       default: null
     platform: linux/amd64
@@ -149,7 +149,7 @@ services:
       UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
       UPSTREAM_REAL_IP_RECURSIVE: "off"
-    image: serviodocker/aruga_acct_payroll:v0.0.6
+    image: serviodocker/aruga_acct_payroll:v0.0.7
     networks:
       default: null
     platform: linux/amd64
@@ -175,7 +175,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: serviodocker/aruga_acct_payroll:v0.0.6
+    image: serviodocker/aruga_acct_payroll:v0.0.7
     networks:
       default: null
     platform: linux/amd64
@@ -204,7 +204,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: serviodocker/aruga_acct_payroll:v0.0.6
+    image: serviodocker/aruga_acct_payroll:v0.0.7
     networks:
       default: null
     platform: linux/amd64
@@ -246,7 +246,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: serviodocker/aruga_acct_payroll:v0.0.6
+    image: serviodocker/aruga_acct_payroll:v0.0.7
     labels:
       ofelia.enabled: "true"
       ofelia.job-exec.datecron.command: bench --site all backup
@@ -278,7 +278,7 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
-    image: serviodocker/aruga_acct_payroll:v0.0.6
+    image: serviodocker/aruga_acct_payroll:v0.0.7
     networks:
       default: null
     platform: linux/amd64
@@ -315,13 +315,13 @@ x-backend-defaults:
   depends_on:
     configurator:
       condition: service_completed_successfully
-  image: serviodocker/aruga_acct_payroll:v0.0.6
+  image: serviodocker/aruga_acct_payroll:v0.0.7
   pull_policy: missing
   restart: unless-stopped
   volumes:
     - sites:/home/frappe/frappe-bench/apps
 x-customizable-image:
-  image: serviodocker/aruga_acct_payroll:v0.0.6
+  image: serviodocker/aruga_acct_payroll:v0.0.7
   pull_policy: missing
   restart: unless-stopped
 x-depends-on-configurator:
